@@ -11,7 +11,7 @@
 | | |
 |---|---|
 | 🔄 **Live model picker** | Fetches `/v1/models` from your running server and shows a floating dropdown — click to set |
-| 🎲 **Seed control** | `fixed` / `increment` / `decrement` / `randomize` — the seed is sent to llama-swap so a run can be reproduced exactly |
+| 🎲 **Seed control** | Uses ComfyUI's native `control after generate` (`fixed` / `increment` / `decrement` / `randomize`) — the seed shown on the node is the one sent to llama-swap, so a run can be reproduced exactly |
 | 🖼️ **Vision support** | Connect any ComfyUI `IMAGE` node; the first frame is base64-encoded and sent as `image_url` |
 | 🧠 **Thinking extraction** | `<think>` / `<thinking>` blocks are **stripped** from `response` and surfaced in a separate `thinking` output |
 | ⏏️ **Auto-unload toggle** | Calls `/unload` automatically after every generation — great for VRAM-constrained setups |
@@ -32,8 +32,7 @@ The main inference node.
 | `system_prompt` | STRING (multiline) | System role message |
 | `prompt` | STRING (multiline) | User message / question |
 | `unload_after_generate` | BOOLEAN | Auto-call `/unload` after every run |
-| `seed` | INT | Sampling seed (default `0`). `0` = seed left out of the request, llama-swap picks one. Any other value reproduces the same output |
-| `control_after_generate` | COMBO | `fixed` / `increment` / `decrement` / `randomize` (default `randomize`) |
+| `seed` | INT | Sampling seed (default `0`). `0` = seed left out of the request, llama-swap picks one. Any other value reproduces the same output. Comes with ComfyUI's native **control after generate** widget (`fixed` / `increment` / `decrement` / `randomize`), applied by the frontend |
 | `thinking` | COMBO | `auto` / `on` / `off` (default `auto`). `auto` leaves thinking to the model/template. `on` / `off` send `chat_template_kwargs.enable_thinking` to ask the template to enable or skip thinking. Only templates that read `enable_thinking` (e.g. Qwen3) respond to it |
 | `image` *(optional)* | IMAGE | Vision input — first frame sent as JPEG base64 |
 
@@ -90,15 +89,17 @@ Both `<think>` and `<thinking>` variants are handled.
 
 ## 🎲 Reproducing a Generation
 
-The resolved seed is sent as the OpenAI-compatible `seed` field:
+The seed value on the node is sent as-is in the OpenAI-compatible `seed` field:
 
 ```json
 {"model": "qwen3.6-35b-uncensored-nothink", "messages": [{"role": "user", "content": "..."}], "seed": 1234, "stream": false}
 ```
 
-To re-run the exact same completion, set `control_after_generate` to **`fixed`** and keep the
-seed value. `increment` and `decrement` step the seed per run (wrapping around), while
-`randomize` — the default — picks a fresh seed each run.
+The seed's **control after generate** widget is ComfyUI's own, so the frontend changes the value
+between runs and the backend just sends what it receives. To re-run the exact same completion,
+set it to **`fixed`** and keep the seed value (or reload the workflow/image metadata of a past
+run). `increment` and `decrement` step the seed per run, while `randomize` picks a fresh seed
+each run.
 
 > Note: reproducibility also depends on the model, its quantization and the sampling
 > parameters being identical, since the seed alone does not pin those down.

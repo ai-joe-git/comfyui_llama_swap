@@ -1,6 +1,5 @@
 import re
 import base64
-import random
 import requests
 import numpy as np
 from io import BytesIO
@@ -9,18 +8,7 @@ from PIL import Image
 DEFAULT_URL = "http://localhost:8080"
 
 MAX_SEED = 0xFFFFFFFF
-SEED_CONTROLS = ["fixed", "increment", "decrement", "randomize"]
 THINKING_MODES = ["auto", "on", "off"]
-
-
-def _apply_seed_control(seed: int, control: str) -> int:
-    if control == "randomize":
-        return random.randint(0, MAX_SEED)
-    if control == "increment":
-        return (seed + 1) % (MAX_SEED + 1)
-    if control == "decrement":
-        return (seed - 1) % (MAX_SEED + 1)
-    return seed
 
 
 def _extract_thinking(text: str) -> tuple[str, str]:
@@ -82,11 +70,8 @@ class LlamaSwapClient:
                     "default": 0,
                     "min": 0,
                     "max": MAX_SEED,
+                    "control_after_generate": True,
                     "tooltip": "Sampling seed. 0 leaves the seed out of the request so llama-swap picks one; any other value reproduces the same output",
-                }),
-                "control_after_generate": (SEED_CONTROLS, {
-                    "default": "randomize",
-                    "tooltip": "How the seed changes on each run",
                 }),
                 "thinking": (THINKING_MODES, {
                     "default": "auto",
@@ -101,7 +86,7 @@ class LlamaSwapClient:
         }
 
     def generate(self, server_url, model, system_prompt, prompt, unload_after_generate,
-                 seed=0, control_after_generate="randomize", thinking="auto", image=None):
+                 seed=0, thinking="auto", image=None):
         base_url = server_url.rstrip("/")
         messages = []
 
@@ -121,9 +106,8 @@ class LlamaSwapClient:
 
         payload = {"model": model, "messages": messages, "stream": False}
 
-        resolved_seed = _apply_seed_control(int(seed), control_after_generate)
-        if resolved_seed > 0:
-            payload["seed"] = resolved_seed
+        if int(seed) > 0:
+            payload["seed"] = int(seed)
 
         if thinking != "auto":
             payload["chat_template_kwargs"] = {"enable_thinking": thinking == "on"}
