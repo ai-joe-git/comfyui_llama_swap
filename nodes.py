@@ -7,7 +7,11 @@ from PIL import Image
 
 DEFAULT_URL = "http://localhost:8080"
 
-MAX_SEED = 0xFFFFFFFF
+# ComfyUI's frontend "randomize" generates seeds beyond 2^32 regardless of the
+# widget's declared max, so the widget accepts the full 64-bit range and the
+# value is folded to llama.cpp's uint32 seed range when building the request.
+MAX_SEED = 0xFFFFFFFFFFFFFFFF
+SEED_MODULUS = 0x100000000
 THINKING_MODES = ["auto", "on", "off"]
 
 
@@ -107,7 +111,7 @@ class LlamaSwapClient:
         payload = {"model": model, "messages": messages, "stream": False}
 
         if int(seed) > 0:
-            payload["seed"] = int(seed)
+            payload["seed"] = int(seed) % SEED_MODULUS
 
         if thinking != "auto":
             payload["chat_template_kwargs"] = {"enable_thinking": thinking == "on"}
