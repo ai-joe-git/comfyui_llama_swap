@@ -7,6 +7,13 @@ from PIL import Image
 
 DEFAULT_URL = "http://localhost:8080"
 
+# ComfyUI's frontend "randomize" generates seeds beyond 2^32 regardless of the
+# widget's declared max, so the widget accepts the full 64-bit range and the
+# value is folded to llama.cpp's uint32 seed range when building the request.
+MAX_SEED = 0xFFFFFFFFFFFFFFFF
+SEED_MODULUS = 0x100000000
+THINKING_MODES = ["auto", "on", "off"]
+
 
 def _extract_thinking(text: str) -> tuple[str, str]:
     pattern = re.compile(r"<think(?:ing)?>(.*?)</think(?:ing)?>", re.DOTALL | re.IGNORECASE)
@@ -63,6 +70,17 @@ class LlamaSwapClient:
                     "label_off": "Keep model loaded",
                     "tooltip": "Call /unload on the llama-swap server after generation",
                 }),
+                "seed": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": MAX_SEED,
+                    "control_after_generate": True,
+                    "tooltip": "Sampling seed. 0 leaves the seed out of the request so llama-swap picks one; any other value reproduces the same output",
+                }),
+                "thinking": (THINKING_MODES, {
+                    "default": "auto",
+                    "tooltip": "auto: leave it to the model/template. on/off: ask the template to enable or skip thinking (Qwen3-style templates)",
+                }),
             },
             "optional": {
                 "image": ("IMAGE", {
@@ -71,7 +89,8 @@ class LlamaSwapClient:
             },
         }
 
-    def generate(self, server_url, model, system_prompt, prompt, unload_after_generate, image=None):
+    def generate(self, server_url, model, system_prompt, prompt, unload_after_generate,
+                 seed=0, thinking="auto", image=None):
         base_url = server_url.rstrip("/")
         messages = []
 
@@ -90,6 +109,12 @@ class LlamaSwapClient:
         messages.append({"role": "user", "content": user_content})
 
         payload = {"model": model, "messages": messages, "stream": False}
+
+        if int(seed) > 0:
+            payload["seed"] = int(seed) % SEED_MODULUS
+
+        if thinking != "auto":
+            payload["chat_template_kwargs"] = {"enable_thinking": thinking == "on"}
 
         try:
             r = requests.post(
