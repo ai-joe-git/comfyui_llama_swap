@@ -11,7 +11,7 @@
 | | |
 |---|---|
 | 🔄 **Live model picker** | Fetches `/v1/models` from your running server and shows a floating dropdown — click to set |
-| 🎲 **Seed control** | Uses ComfyUI's native `control after generate` (`fixed` / `increment` / `decrement` / `randomize`) — the seed shown on the node is the one sent to llama-swap, so a run can be reproduced exactly |
+| 🎲 **Seed control** | Uses ComfyUI's native `control after generate` (`fixed` / `increment` / `decrement` / `randomize`) — the seed shown on the node maps deterministically to the one sent to llama-swap, so a run can be reproduced exactly |
 | 🖼️ **Vision support** | Connect any ComfyUI `IMAGE` node; the first frame is base64-encoded and sent as `image_url` |
 | 🧠 **Thinking extraction** | `<think>` / `<thinking>` blocks are **stripped** from `response` and surfaced in a separate `thinking` output |
 | ⏏️ **Auto-unload toggle** | Calls `/unload` automatically after every generation — great for VRAM-constrained setups |
@@ -32,7 +32,7 @@ The main inference node.
 | `system_prompt` | STRING (multiline) | System role message |
 | `prompt` | STRING (multiline) | User message / question |
 | `unload_after_generate` | BOOLEAN | Auto-call `/unload` after every run |
-| `seed` | INT | Sampling seed (default `0`). `0` = seed left out of the request, llama-swap picks one. Any other value reproduces the same output. Comes with ComfyUI's native **control after generate** widget (`fixed` / `increment` / `decrement` / `randomize`), applied by the frontend |
+| `seed` | INT | Sampling seed (default `0`). `0` = seed left out of the request, llama-swap picks one. Any other value reproduces the same output (sent as `seed % 2^32`, llama.cpp's seed range). Comes with ComfyUI's native **control after generate** widget (`fixed` / `increment` / `decrement` / `randomize`), applied by the frontend |
 | `thinking` | COMBO | `auto` / `on` / `off` (default `auto`). `auto` leaves thinking to the model/template. `on` / `off` send `chat_template_kwargs.enable_thinking` to ask the template to enable or skip thinking. Only templates that read `enable_thinking` (e.g. Qwen3) respond to it |
 | `image` *(optional)* | IMAGE | Vision input — first frame sent as JPEG base64 |
 
@@ -89,7 +89,8 @@ Both `<think>` and `<thinking>` variants are handled.
 
 ## 🎲 Reproducing a Generation
 
-The seed value on the node is sent as-is in the OpenAI-compatible `seed` field:
+The seed value on the node is sent in the OpenAI-compatible `seed` field, folded to llama.cpp's
+32-bit seed range (`seed % 2^32`) — the same node value always maps to the same sent seed:
 
 ```json
 {"model": "qwen3.6-35b-uncensored-nothink", "messages": [{"role": "user", "content": "..."}], "seed": 1234, "stream": false}
